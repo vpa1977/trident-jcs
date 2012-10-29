@@ -76,7 +76,7 @@ public class JCSState <T> implements Snapshottable<T>{
 	}
 
 	public void beginCommit(Long txid) {
-		m_instance = get();
+		m_instance = get(); 
 	}
 
 	public void commit(Long txid) {
