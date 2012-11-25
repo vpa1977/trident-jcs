@@ -3,7 +3,6 @@
   <groupId>trident-jcs</groupId>
   <artifactId>trident-jcs</artifactId>
   <version>0.0.1-SNAPSHOT</version>
-  
   <repositories>
     <repository>
       <id>clojars.org</id>
@@ -37,7 +36,7 @@
    		<dependency>
    			<groupId>storm</groupId>
    			<artifactId>storm</artifactId>
-   			<version>0.8.2-wip8</version>
+   			<version>0.8.2-wip18</version>
    		</dependency>
     <dependency>
 		<groupId>jcs</groupId>
