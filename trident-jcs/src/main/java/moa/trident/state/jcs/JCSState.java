@@ -1,6 +1,10 @@
 package moa.trident.state.jcs;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -8,6 +12,7 @@ import java.util.Properties;
 
 import org.apache.jcs.JCS;
 import org.apache.jcs.access.exception.CacheException;
+import org.apache.jcs.engine.control.CompositeCacheManager;
 
 import backtype.storm.tuple.Values;
 
@@ -27,13 +32,43 @@ import storm.trident.state.snapshot.Snapshottable;
  */
 public class JCSState <T> implements Snapshottable<T>{
 	
+	private static boolean CONFIGURED = false;
 	private JCS m_jcs;
 	private String m_key;
 	private T m_instance;
 	
+	private int getPid() throws Throwable
+	{
+		java.lang.management.RuntimeMXBean runtime = java.lang.management.ManagementFactory.getRuntimeMXBean();
+		java.lang.reflect.Field jvm = runtime.getClass().getDeclaredField("jvm");
+		jvm.setAccessible(true);
+		sun.management.VMManagement mgmt = (sun.management.VMManagement) jvm.get(runtime);
+		java.lang.reflect.Method pid_method = mgmt.getClass().getDeclaredMethod("getProcessId");
+		pid_method.setAccessible(true);
+		int pid = (Integer) pid_method.invoke(mgmt);
+		return pid;
+	}
+	
 	public JCSState(String key) throws IOException, CacheException
 	{
-		JCS.setConfigFilename("/moa/trident/state/jcs/jcs.properties");
+		if (!JCSState.CONFIGURED)
+		{
+			int port = 31110;
+			try // hack, to use unique port number for each cache instance
+			{
+				int pid = getPid();
+				pid = pid % 1000;
+				port = port + pid;
+			}
+			catch (Throwable t) { throw new IOException(t); }
+
+			java.util.Properties prp = new java.util.Properties();
+			prp.load(getClass().getResourceAsStream("/moa/trident/state/jcs/jcs.properties"));
+			prp.setProperty("jcs.auxiliary.LTCP.attributes.TcpListenerPort", port + "");
+			CompositeCacheManager.getUnconfiguredInstance().configure(prp);
+			JCSState.CONFIGURED= true;
+			
+		}
 		m_jcs = JCS.getInstance("sharedCache");
 		m_key = key;
 	}
@@ -67,7 +102,7 @@ public class JCSState <T> implements Snapshottable<T>{
 		return m_instance;
 	}
 
-	public void set(T o) {
+	public synchronized void set(T o) {
 		try {
 			m_jcs.put( m_key, o);
 		} catch (CacheException e) {
