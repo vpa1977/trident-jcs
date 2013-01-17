@@ -6,6 +6,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -30,7 +31,7 @@ import storm.trident.state.snapshot.Snapshottable;
  *
  * @param <T> - type to cache.
  */
-public class JCSState <T> implements Snapshottable<T>{
+public class JCSState <T> implements Snapshottable<T>, MapState<T>{
 	
 	private static boolean CONFIGURED = false;
 	private JCS m_jcs;
@@ -76,6 +77,8 @@ public class JCSState <T> implements Snapshottable<T>{
 	public static StateFactory create(String key) {
 		return new Factory(key);
 	}
+	
+	
 
 	public static class Factory implements StateFactory {
 		private String m_key;
@@ -103,6 +106,8 @@ public class JCSState <T> implements Snapshottable<T>{
 	}
 
 	public synchronized void set(T o) {
+		if (o == null)
+			return;
 		try {
 			m_jcs.put( m_key, o);
 		} catch (CacheException e) {
@@ -116,6 +121,57 @@ public class JCSState <T> implements Snapshottable<T>{
 
 	public void commit(Long txid) {
 		set(m_instance);
+	}
+
+	public List<T> multiGet(List<List<Object>> keys) {
+		ArrayList<T> ret = new ArrayList<T>();
+		for (List<Object> compoundKey : keys)
+		{
+		
+			Object key = compoundKey.get(0);
+			Object value = m_jcs.get(key);
+			ret.add((T)value);
+		}
+		return ret;
+	}
+
+	public List<T> multiUpdate(List<List<Object>> keys,
+			List<ValueUpdater> updaters) {
+		ArrayList<T> ret = new ArrayList<T>();
+		Iterator<ValueUpdater> it = updaters.iterator();
+		for (List<Object> compoundKey : keys)
+		{
+			ValueUpdater updater = it.next();
+			Object key = compoundKey.get(0);
+			Object value = m_jcs.get( key );
+			value = updater.update( value );
+			if (value != null) {
+				try {
+					m_jcs.put( key , value );
+					System.out.println("Putting "+ key + " to "+ value);
+				} catch (CacheException e) {
+					// TODO Auto-generated catch block
+					throw new RuntimeException(e);
+				}
+			}
+			ret.add((T)value);
+		}
+		return ret;
+	}
+
+	public void multiPut(List<List<Object>> keys, List<T> vals) {
+		Iterator<T> it = vals.iterator();
+		for (List<Object> compoundKey : keys)
+		{
+			T value = it.next();
+			Object key = compoundKey.get(0);
+			try {
+				m_jcs.put( key , value );
+			} catch (CacheException e) {
+				// TODO Auto-generated catch block
+				throw new RuntimeException(e);
+			}
+		}
 	}
 
 }
